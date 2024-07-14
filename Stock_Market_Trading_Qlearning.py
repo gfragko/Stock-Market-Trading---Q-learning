@@ -14,7 +14,7 @@ import random
 from tkinter import *
 
 
-
+#-------------------------------__________________Environments___________________-------------------------------------------------------------------------
 # Generating environments
 
 
@@ -458,5 +458,138 @@ def generate_environment(N,fee):
     return P
 
 
+#==============================================================================================================================
+#################### Q-Learning ################
 
 
+# This function is used to simulate the environments response
+# It gets as input the environment, the current state and the action that we have selected
+# and it returns the next state and the reward
+def get_response(environment, state, action):
+    P = environment
+    
+    response = P[state][action] # get next states, transition probabilities and transaction rewards
+                                # based on the current state and the action we want to make   
+
+    # we use random.choices to get a random next state based on the weighted probabilities of the next states
+    choices = [0,1,2,3]
+    probabilities = [response[0][0], response[1][0], response[2][0], response[3][0]]
+    # Make a random choice based on probabilities
+    # k=1: Specifies that we want to make a single random choice.
+    # [0] is used to extract the single element from that list
+    random_choice = random.choices(choices, weights=probabilities, k=1)[0]
+     
+    next_state = response [random_choice][1] # get next state
+    reward = response [random_choice][2]     # get reward
+     
+    return next_state,reward
+
+
+
+#===== Hyperparameters ===================
+# alpha -> Learning rate
+# gamma -> Discount factor
+# epsilon ->  # Exploration rate
+# epsilon_decay -> Decay rate for epsilon
+# min_epsilon -> Minimum epsilon value
+# num_episodes -> Number of episodes
+
+def implement_Q_learning(environment, num_of_episodes, alpha, gamma):
+    Q = np.zeros((len(environment),len(environment[0])))
+    epsilon = 1.0             # Exploration rate
+    epsilon_decay = 0.99      # Decay rate for epsilon
+    min_epsilon = 0.1         # Minimum epsilon value
+    for ep in range(num_of_episodes):
+        current_state = random.randint(0, 7) # select a random starting state
+        
+    for _ in range(100):      # do 100 steps do get a feel for what happens in the environment
+        # decide if we are going to explore or to exploit based on the epsilon value
+        if random.uniform(0,1) < epsilon:
+            action = np.random.binomial(1,0.5)     # Explore by picking a random action
+        else:
+            action = np.argmax([Q[current_state][0],Q[current_state][1]]) # Exploit by picking the best action for this state
+    
+        next_state,reward = get_response(environment, current_state, action)
+        
+        q_curr = Q[current_state][action]   # get the value of the current q based on the next state and the action that we chose
+        target_state = reward + gamma * np.max(Q[next_state])
+        
+        # update the Q table 
+        Q[current_state][action] = (1-alpha) * q_curr + alpha * target_state
+        
+        # update the current state
+        current_state = next_state    
+        
+        # Decay epsilon
+        if epsilon > min_epsilon:
+            epsilon *= epsilon_decay         
+
+    return Q
+
+
+#####################____TASK1____########################################
+print("For environment 1 we get")   
+print(implement_Q_learning(P1, 1000, 0.1, 0.9))
+print("For environment 2 we get")   
+print(implement_Q_learning(P2, 1000, 0.1, 0.9))
+
+
+#####################____TASK2____########################################
+#Generating environment P3\
+P3 = generate_environment(10, 0.03)
+print("For environment 3 we get")   
+print(implement_Q_learning(P3, 1000, 0.1, 0.9))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#mr akis i love u
