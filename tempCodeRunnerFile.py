@@ -1,8 +1,5 @@
-    
-     
-    #  action_switch:[
-    #          (1/20, 0, -0.02 + fee),  # {1,L,L}
-    #          (9/20, 1, -0.02 + fee),  # {1,L,H}
-    #          (1/20, 2, +0.1  + fee),  # {1,H,L}
-    #          (9/20, 3, +0.1  + fee)   # {1,H,H}
-    #     ]
+#####################____TASK1____########################################
+# print("\nFor environment 1 we get")   
+# print(implement_Q_learning(P1, 1000, 0.1, 0.9))
+# print("\nFor environment 2 we get")   
+# print(implement_Q_learning(P2, 1000, 0.1, 0.9))

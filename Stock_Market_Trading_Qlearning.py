@@ -12,6 +12,7 @@ import numpy as np
 import time
 import random
 from tkinter import *
+import csv
 
 
 #-------------------------------__________________Environments___________________-------------------------------------------------------------------------
@@ -412,7 +413,7 @@ def generate_environment(N,fee):
                     transitionProb = transitionProb * pi[stock][3]
 
             nextState = j
-            #reward = random.uniform(-0.02, 2)
+            #reward = random.uniform(-0.02, 20)
             reward = random.uniform(-0.02, 0.1)
             action_Keep.append((transitionProb,nextState,reward))
         #-----------------------------------------------------------------------------------------------------------------------------------------------
@@ -443,7 +444,7 @@ def generate_environment(N,fee):
                     transitionProb = transitionProb * pi[stock][3]
 
             nextState = j
-            #reward = random.uniform(-0.02, 2) - fee
+            #reward = random.uniform(-0.02, 20) - fee
             reward = random.uniform(-0.02, 0.1) - fee
             action_Switch.append((transitionProb,nextState,reward))
 
@@ -484,7 +485,33 @@ def get_response(environment, state, action):
      
     return next_state,reward
 
+def get_response_task3(environment, state, action):
+    P = environment
+    
+    response = P[state][action] # get next states, transition probabilities and transaction rewards
+                                # based on the current state and the action we want to make   
 
+    # we use random.choices to get a random next state based on the weighted probabilities of the next states
+    choices = []
+    if action == 0 :
+        choices = [0,1,2,3]
+    else:
+        for i in range(len(environment[1])):#switch case
+            choices.append(i)
+    # because depending on the action (keep or switch) the num of actions we can take is different
+    # hence, we check what the action we do is and declare the choices array accordingly
+    
+    
+    probabilities = [response[0][0], response[1][0], response[2][0], response[3][0]]
+    # Make a random choice based on probabilities
+    # k=1: Specifies that we want to make a single random choice.
+    # [0] is used to extract the single element from that list
+    random_choice = random.choices(choices, weights=probabilities, k=1)[0]
+     
+    next_state = response [random_choice][1] # get next state
+    reward = response [random_choice][2]     # get reward
+     
+    return next_state,reward
 
 #===== Hyperparameters ===================
 # alpha -> Learning rate
@@ -527,69 +554,20 @@ def implement_Q_learning(environment, num_of_episodes, alpha, gamma):
     return Q
 
 
-#####################____TASK1____########################################
-print("For environment 1 we get")   
-print(implement_Q_learning(P1, 1000, 0.1, 0.9))
-print("For environment 2 we get")   
-print(implement_Q_learning(P2, 1000, 0.1, 0.9))
+# #####################____TASK1____########################################
+# print("\nFor environment 1 we get")   
+# print(implement_Q_learning(P1, 1000, 0.1, 0.9))
+# print("\nFor environment 2 we get")   
+# print(implement_Q_learning(P2, 1000, 0.1, 0.9))
 
 
-#####################____TASK2____########################################
-#Generating environment P3\
-P3 = generate_environment(10, 0.03)
-print("For environment 3 we get")   
-print(implement_Q_learning(P3, 1000, 0.1, 0.9))
-
-
-
-
+# ####################____TASK2____########################################
+# Generating environment P3
+P3 = generate_environment(5, 0.03)
+print(P3)
+print("\nFor environment 3 we get")   
+print(implement_Q_learning(P3, 10000, 0.1, 0.9))
 
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#mr akis i love u
