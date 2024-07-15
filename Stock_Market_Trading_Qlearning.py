@@ -475,7 +475,7 @@ def get_response(environment, state, action):
     # we use random.choices to get a random next state based on the weighted probabilities of the next states
     probabilities = []
     choices = range(len(P[state][action]))
-    for i in range(len(P[state][action])):# switch case
+    for i in range(len(P[state][action])): 
         probabilities.append(response[i][0])
         
      
@@ -490,6 +490,13 @@ def get_response(environment, state, action):
     next_state = response [random_choice][1] # get next state
     reward = response [random_choice][2]     # get reward
      
+    # print("Current State: ",state)
+    # print("Action: ",action)
+    # print("Next State: ", next_state)
+    # print("Prob: ",probabilities[random_choice])
+    # print("Reward: ",reward)
+    
+
     return next_state,reward
 
 #===== Hyperparameters ===================
@@ -502,59 +509,67 @@ def get_response(environment, state, action):
 
 def implement_Q_learning(environment, num_of_episodes, alpha, gamma):
     Q = np.zeros((len(environment),len(environment[0])))
-    epsilon = 1.0               # Exploration rate
-    epsilon_decay = 0.9999      # Decay rate for epsilon
+    epsilon = 1.0               # Exploration rate0
+    epsilon_decay = 0.99      # Decay rate for epsilon
     min_epsilon = 0.1           # Minimum epsilon value
-    for ep in range(num_of_episodes):
-        current_state = random.randint(0, 7) # select a random starting state
+    for _ in range(num_of_episodes):
+        current_state = random.randint(0, len(environment)-1) # select a random starting state
         
         for _ in range(100):      # do 100 steps do get a feel for what happens in the environment
             # decide if we are going to explore or to exploit based on the epsilon value
             if random.uniform(0,1) < epsilon:
-                action = np.random.binomial(1,0.5)     # Explore by picking a random action
+                #action = np.random.binomial(1,0.5)     # Explore by picking a random action
+                action = random.choice([0,1])
             else:
-                action = np.argmax([Q[current_state][0],Q[current_state][1]]) # Exploit by picking the best action for this state
-        
+                #action = np.argmax([Q[current_state][0],Q[current_state][1]]) # Exploit by picking the best action for this state
+                #print(Q[current_state,:])
+                # action = np.argmax(Q[current_state,:])
+                action = np.argmax(Q[current_state])
+                #print("Selected: ", action)
             next_state,reward = get_response(environment, current_state, action)
             
             # q_curr = Q[current_state][action]   # get the value of the current q based on the next state and the action that we chose
-            # target = reward + gamma * np.max(Q[next_state][:])
-            
-            #print(Q[next_state,:])
-            #print(Q[next_state])
+            # # target = reward + gamma * np.max(Q[next_state][:])
+            # target = reward + gamma * np.max(Q[next_state])
+            # Q[current_state][action] = (1-alpha) * q_curr + alpha * target
 
-            # update the Q table 
-            #Q[current_state][action] = (1-alpha) * q_curr + alpha * target
-
-            Q[current_state][action] = Q[current_state][action] + alpha * (
-                reward + gamma * np.max(Q[current_state , :]) - Q[current_state][action]
+            Q[current_state,action] = Q[current_state,action] + alpha * (
+                reward + gamma * np.max(Q[next_state]) - Q[current_state,action]
             )
-
-
-
+            
+            #########################################
+            # best_next_action = np.argmax(Q[next_state])
+            # td_target = reward + gamma * Q[next_state][best_next_action]
+            # td_delta = td_target - Q[current_state][action]
+            # Q[current_state][action] += alpha * td_delta       
+            
+            #########################################
+            
             # update the current state
             current_state = next_state    
         
         # Decay epsilon
         if epsilon > min_epsilon:
-            epsilon *= epsilon_decay         
-
+            epsilon *= epsilon_decay 
+            #print("epsilon: ",epsilon)      
+        if epsilon <= min_epsilon:
+            #print("alpha")
+            alpha = 0.0001
+        
     return Q
 
 
 # #####################____TASK1____########################################
-print("\nFor environment 1 we get")   
-print(implement_Q_learning(P1, 1000, 0.1, 0.9))
+# print("\nFor environment 1 we get")   
+# print(implement_Q_learning(P1, 1000, 0.9, 0.9))
 print("\nFor environment 2 we get") 
-Q2 = implement_Q_learning(P2, 100000, 0.1, 0.9)  
-#print(implement_Q_learning(P2, 1000, 0.1, 0.9))
+Q2 = implement_Q_learning(P2, 1000000, 0.5, 0)  
 print(Q2)
 print(np.argmax(Q2,axis=1))
 
 ####################____TASK2____########################################
 # Generating environment P3
-print("P1= ",P1[0][1])
-#print(range(len(P1)))
+
 
 # P3 = generate_environment(4, 0.03)
 # #print(P3)
