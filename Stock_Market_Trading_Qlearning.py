@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 import torch
 from torch import nn
 import torch.nn.functional as F
+from collections import deque
 
 #-------------------------------__________________Environments___________________-------------------------------------------------------------------------
 # Generating environments
@@ -572,7 +573,19 @@ def implement_Q_learning(environment, num_of_episodes, alpha, gamma):
 
 ####################____TASK3____########################################
 
+# Define memory for Experience Replay
+class ReplayMemory():
+    def __init__(self, maxlen):
+        self.memory = deque([], maxlen=maxlen)
+    
+    def append(self, transition):
+        self.memory.append(transition)
 
+    def sample(self, sample_size):
+        return random.sample(self.memory, sample_size)
+
+    def __len__(self):
+        return len(self.memory)
 
 # Define model
 class DQN(nn.Module):
@@ -581,7 +594,7 @@ class DQN(nn.Module):
 
         # Define network layers
         self.fc1 = nn.Linear(in_states, h1_nodes)   # first fully connected layer
-        self.out = nn.Linear(h1_nodes, out_actions) # ouptut layer w
+        self.out = nn.Linear(h1_nodes, out_actions) # output layer w
 
     def forward(self, x):
         x = F.relu(self.fc1(x)) # Apply rectified linear unit (ReLU) activation
@@ -593,15 +606,16 @@ class DQN(nn.Module):
 # Class That Implements Our Deep Q-Network
 class stock_market_trading_DQN():    
     # HyperParameters
-    alpha = 0.01              # Learning rate
-    gamma = 0.01              # Discount Factor
+    alpha = 0.001              # Learning rate
+    gamma = 0              # Discount Factor
     synching_period = 10    # After this many batches we synch the target nn with the policy nn
     replay_buffer_size = 1000 # Size of replay buffer
     min_batch_size = 32      # Size of each batch
     #optimizer = optim.Adam(q_network.parameters(), lr=0.001)
 
     # Define Huber as our loss function
-    loss_func = nn.SmoothL1Loss()
+    # loss_func = nn.SmoothL1Loss()
+    loss_func = nn.MSELoss()
     optimizer = None
     
     # Encode the input state 
@@ -611,12 +625,12 @@ class stock_market_trading_DQN():
         return input_tensor
     
     # This function returns a random batch of size 'batch_size' from the given memory
-    def sample_mem_buffer(self, memory,batch_size):
-        sample=[]
-        for _ in range(batch_size):
-            random_idx = random.randint(0,batch_size-1)
-            sample.append(memory[random_idx])      
-        return sample 
+    # def sample_mem_buffer(self, memory,batch_size):
+    #     sample=[]
+    #     for _ in range(batch_size):
+    #         random_idx = random.randint(0,batch_size-1)
+    #         sample.append(memory[random_idx])      
+    #     return sample 
         
         
     # This method is responsible to train our network based on a number of 'episodes'
@@ -626,8 +640,8 @@ class stock_market_trading_DQN():
         num_of_actions = len(P[0])
         
         epsilon = 1.0 # Exploration rate
-        
-        memory_buffer = [[] for _ in range(self.replay_buffer_size)] 
+        memory_buffer = ReplayMemory(self.replay_buffer_size)
+        #memory_buffer = [[] for _ in range(self.replay_buffer_size)] 
         
         #memory_buffer[i % 1000] = [0,1,2,3]
         
@@ -635,21 +649,23 @@ class stock_market_trading_DQN():
         # We create a NN with num of input nodes equal to the num of the total states 
         # The num of output layer nodes is equal to the num of the total actions
         # The hidden layer's num of nodes is equal to the num of states -> this is adjustable
-        policy_dqn = DQN(num_of_states, num_of_states, num_of_actions)
-        target_dqn = DQN(num_of_states, num_of_states, num_of_actions)
+        policy_dqn = DQN(in_states=num_of_states, h1_nodes=num_of_states, out_actions=num_of_actions)
+        target_dqn = DQN(in_states=num_of_states, h1_nodes=num_of_states, out_actions=num_of_actions)
 
         # initialize the 2 networks to be the same 
         target_dqn.load_state_dict(policy_dqn.state_dict())
 
         print('Policy (random, before training):')
         self.print_dqn(policy_dqn)
+        print('===============================================================')
+        print('===============================================================')
 
         # optimizer = torch.optim.SGD(model.parameters(), lr=lr)
         
-        self.optimizer = torch.optim.RMSprop(policy_dqn.parameters(), lr=self.alpha, alpha=0.99, 
-                                             eps=1e-08, weight_decay=0, momentum=0, centered=False)
+        # self.optimizer = torch.optim.RMSprop(policy_dqn.parameters(), lr=self.alpha, alpha=0.99, 
+        #                                      eps=1e-08, weight_decay=0, momentum=0, centered=False)
         
-        
+        self.optimizer = torch.optim.Adam(policy_dqn.parameters(), lr=self.alpha)
         # optimizer = SGD([parameter], lr=0.1)
         
         # keep track of the reward at each round 
@@ -657,6 +673,7 @@ class stock_market_trading_DQN():
         # List to keep track of epsilon decay
         epsilon_tracking = []
         step = 0 # which step we are on 
+        synch_counter = 0 # which step we are on 
         
 
         for i in range(episodes):
@@ -664,37 +681,48 @@ class stock_market_trading_DQN():
         
             for _ in range(100):      # do 100 steps do get a feel for what happens in the environment
                 # decide if we are going to explore or to exploit based on the epsilon value
-                if random.uniform(0,1) < epsilon:
+                # if random.uniform(0,1) < epsilon:
+                if random.random() < epsilon:
                     #action = np.random.binomial(1,0.5)     # Explore by picking a random action
                     action = random.choice([0,1])
                 else:
                      # From the output layer, choose the node output (action) with the maximum value
-                     action = policy_dqn(self.state_to_dqn_input(current_state, num_of_states)).argmax().item()
+                    with torch.no_grad():
+                        action = policy_dqn(self.state_to_dqn_input(current_state, num_of_states)).argmax().item()
                     
                 # get the response from the environment
                 next_state,reward = get_response(environment, current_state, action)
                 # reward_tracking[i] = reward
                 
                 # Store the environments response into our memory        
-                memory_buffer[step % 1000] = [current_state, action, next_state, reward]
-                
+                # memory_buffer[step % 1000] = [current_state, action, next_state, reward]
+                memory_buffer.append((current_state, action, next_state, reward)) 
+            
                 # update the next state
                 current_state = next_state    
             
                 # Increment step counter
                 step += 1
+                synch_counter += 1
             
             # Perform the optimization
-            mini_batch = self.sample_mem_buffer(memory_buffer, self.min_batch_size)
-            self.optimize(mini_batch, policy_dqn, target_dqn)        
+            if(len(memory_buffer) > self.min_batch_size):
 
-            # Decay epsilon
-            epsilon = max(epsilon - 1/episodes, 0)
-            
-            # Copy policy network to target network after a certain number of steps
-            ### CHECK
-            if (step % self.synching_period) == 0:
-                target_dqn.load_state_dict(policy_dqn.state_dict())
+                #mini_batch = self.sample_mem_buffer(memory_buffer, self.min_batch_size)
+                mini_batch = memory_buffer.sample(self.min_batch_size)
+                self.optimize(mini_batch, policy_dqn, target_dqn)        
+
+                # Decay epsilon
+                #epsilon = max(epsilon - 1/episodes, 0)
+                epsilon = max(epsilon * 0.99, 0.1)
+
+                # Copy policy network to target network after a certain number of steps
+                ### CHECK
+                # if (step % self.synching_period) == 0:
+                if synch_counter > self.synching_period :
+                # if (synch_counter  self.synching_period): 
+                    target_dqn.load_state_dict(policy_dqn.state_dict())
+                    synch_counter = 0
 
         # return the optimal policy
         return policy_dqn.state_dict()
@@ -736,7 +764,7 @@ class stock_market_trading_DQN():
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
-        return
+        
         
     # Test function
     def test_DQN(self, episodes, environment,optimal_policy):
@@ -791,7 +819,7 @@ class stock_market_trading_DQN():
 if __name__ == '__main__':
 
     dql = stock_market_trading_DQN()
-    optimal_policy = dql.train_DQN(100000,P2)
+    optimal_policy = dql.train_DQN(10000,P2)
     dql.test_DQN(10,P2,optimal_policy)
             
         

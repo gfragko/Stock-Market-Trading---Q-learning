@@ -54,6 +54,8 @@ class FrozenLakeDQL():
     def train(self, episodes, render=False, is_slippery=False):
         # Create FrozenLake instance
         env = gym.make('FrozenLake-v1', map_name="4x4", is_slippery=is_slippery, render_mode='human' if render else None)
+        
+        print(env)
         num_states = env.observation_space.n
         num_actions = env.action_space.n
         
@@ -253,7 +255,7 @@ class FrozenLakeDQL():
 
             # Print policy in the format of: state, action, q values
             # The printed layout matches the FrozenLake map.
-            print(f'{s:02},{best_action},[{q_values}]', end=' ')         
+            print(f'{s:02},{best_action},[{q_values}]', end=' \n')         
             if (s+1)%4==0:
                 print() # Print a newline every 4 states
 
