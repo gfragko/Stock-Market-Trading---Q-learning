@@ -8,12 +8,12 @@
 
 import numpy as np
 import tkinter as tk #loads standard python GUI libraries
-import numpy as np
-import time
 import random
 from tkinter import *
-import csv
-
+import matplotlib.pyplot as plt
+import torch
+from torch import nn
+import torch.nn.functional as F
 
 #-------------------------------__________________Environments___________________-------------------------------------------------------------------------
 # Generating environments
@@ -374,7 +374,7 @@ def generate_environment(N,fee):
 
         ##########################
         # We define states of L and H with binary ids
-        # For example for 2 stocks this stranslation occurs:
+        # For example for 2 stocks this translation occurs:
         # LL -> 0,0 -> 0
         # LH -> 0,1 -> 1
         # HL -> 1,0 -> 2
@@ -537,14 +537,6 @@ def implement_Q_learning(environment, num_of_episodes, alpha, gamma):
                 reward + gamma * np.max(Q[next_state]) - Q[current_state,action]
             )
             
-            #########################################
-            # best_next_action = np.argmax(Q[next_state])
-            # td_target = reward + gamma * Q[next_state][best_next_action]
-            # td_delta = td_target - Q[current_state][action]
-            # Q[current_state][action] += alpha * td_delta       
-            
-            #########################################
-            
             # update the current state
             current_state = next_state    
         
@@ -562,10 +554,10 @@ def implement_Q_learning(environment, num_of_episodes, alpha, gamma):
 # #####################____TASK1____########################################
 # print("\nFor environment 1 we get")   
 # print(implement_Q_learning(P1, 1000, 0.9, 0.9))
-print("\nFor environment 2 we get") 
-Q2 = implement_Q_learning(P2, 1000000, 0.5, 0)  
-print(Q2)
-print(np.argmax(Q2,axis=1))
+# print("\nFor environment 2 we get") 
+# Q2 = implement_Q_learning(P2, 1000000, 0.5, 0)  
+# print(Q2)
+# print(np.argmax(Q2,axis=1))
 
 ####################____TASK2____########################################
 # Generating environment P3
@@ -578,4 +570,236 @@ print(np.argmax(Q2,axis=1))
 
 
 
+####################____TASK3____########################################
 
+
+
+# Define model
+class DQN(nn.Module):
+    def __init__(self, in_states, h1_nodes, out_actions):
+        super().__init__()
+
+        # Define network layers
+        self.fc1 = nn.Linear(in_states, h1_nodes)   # first fully connected layer
+        self.out = nn.Linear(h1_nodes, out_actions) # ouptut layer w
+
+    def forward(self, x):
+        x = F.relu(self.fc1(x)) # Apply rectified linear unit (ReLU) activation
+        x = self.out(x)         # Calculate output
+        return x
+
+
+
+# Class That Implements Our Deep Q-Network
+class stock_market_trading_DQN():    
+    # HyperParameters
+    alpha = 0.01              # Learning rate
+    gamma = 0.01              # Discount Factor
+    synching_period = 10    # After this many batches we synch the target nn with the policy nn
+    replay_buffer_size = 1000 # Size of replay buffer
+    min_batch_size = 32      # Size of each batch
+    #optimizer = optim.Adam(q_network.parameters(), lr=0.001)
+
+    # Define Huber as our loss function
+    loss_func = nn.SmoothL1Loss()
+    optimizer = None
+    
+    # Encode the input state 
+    def state_to_dqn_input(self, state:int, num_states:int)->torch.Tensor:
+        input_tensor = torch.zeros(num_states)
+        input_tensor[state] = 1
+        return input_tensor
+    
+    # This function returns a random batch of size 'batch_size' from the given memory
+    def sample_mem_buffer(self, memory,batch_size):
+        sample=[]
+        for _ in range(batch_size):
+            random_idx = random.randint(0,batch_size-1)
+            sample.append(memory[random_idx])      
+        return sample 
+        
+        
+    # This method is responsible to train our network based on a number of 'episodes'
+    def train_DQN(self, episodes, environment):
+        P = environment
+        num_of_states = len(P)
+        num_of_actions = len(P[0])
+        
+        epsilon = 1.0 # Exploration rate
+        
+        memory_buffer = [[] for _ in range(self.replay_buffer_size)] 
+        
+        #memory_buffer[i % 1000] = [0,1,2,3]
+        
+        # Create policy and target network. Number of nodes in the hidden layer can be adjusted.
+        # We create a NN with num of input nodes equal to the num of the total states 
+        # The num of output layer nodes is equal to the num of the total actions
+        # The hidden layer's num of nodes is equal to the num of states -> this is adjustable
+        policy_dqn = DQN(num_of_states, num_of_states, num_of_actions)
+        target_dqn = DQN(num_of_states, num_of_states, num_of_actions)
+
+        # initialize the 2 networks to be the same 
+        target_dqn.load_state_dict(policy_dqn.state_dict())
+
+        print('Policy (random, before training):')
+        self.print_dqn(policy_dqn)
+
+        # optimizer = torch.optim.SGD(model.parameters(), lr=lr)
+        
+        self.optimizer = torch.optim.RMSprop(policy_dqn.parameters(), lr=self.alpha, alpha=0.99, 
+                                             eps=1e-08, weight_decay=0, momentum=0, centered=False)
+        
+        
+        # optimizer = SGD([parameter], lr=0.1)
+        
+        # keep track of the reward at each round 
+        reward_tracking = np.zeros(episodes)
+        # List to keep track of epsilon decay
+        epsilon_tracking = []
+        step = 0 # which step we are on 
+        
+
+        for i in range(episodes):
+            current_state = random.randint(0, len(environment)-1) # select a random starting state
+        
+            for _ in range(100):      # do 100 steps do get a feel for what happens in the environment
+                # decide if we are going to explore or to exploit based on the epsilon value
+                if random.uniform(0,1) < epsilon:
+                    #action = np.random.binomial(1,0.5)     # Explore by picking a random action
+                    action = random.choice([0,1])
+                else:
+                     # From the output layer, choose the node output (action) with the maximum value
+                     action = policy_dqn(self.state_to_dqn_input(current_state, num_of_states)).argmax().item()
+                    
+                # get the response from the environment
+                next_state,reward = get_response(environment, current_state, action)
+                # reward_tracking[i] = reward
+                
+                # Store the environments response into our memory        
+                memory_buffer[step % 1000] = [current_state, action, next_state, reward]
+                
+                # update the next state
+                current_state = next_state    
+            
+                # Increment step counter
+                step += 1
+            
+            # Perform the optimization
+            mini_batch = self.sample_mem_buffer(memory_buffer, self.min_batch_size)
+            self.optimize(mini_batch, policy_dqn, target_dqn)        
+
+            # Decay epsilon
+            epsilon = max(epsilon - 1/episodes, 0)
+            
+            # Copy policy network to target network after a certain number of steps
+            ### CHECK
+            if (step % self.synching_period) == 0:
+                target_dqn.load_state_dict(policy_dqn.state_dict())
+
+        # return the optimal policy
+        return policy_dqn.state_dict()
+              
+                
+    def optimize(self,mini_batch, policy_dqn, target_dqn):
+        # Get number of input nodes
+        num_states = policy_dqn.fc1.in_features
+
+        current_q_list = []
+        target_q_list = []
+
+        for state, action, new_state, reward in mini_batch:
+            # Calculate target q value 
+            # We disable the gradient tracking for memory optimization
+            with torch.no_grad():
+                # Here we get the optimal output we SHOULD have gotten according to the target NN
+                target = torch.FloatTensor(
+                    # For DQNs the target NNs parameters are modified according to the equation
+                    # Q[state,action] = reward + γ *max{Q[next_state]}
+                    reward + self.gamma * target_dqn(self.state_to_dqn_input(new_state, num_states)).max()
+                )
+                    
+            # Get the current set of Q values
+            current_q = policy_dqn(self.state_to_dqn_input(state, num_states))
+            current_q_list.append(current_q)
+
+            # Get the target set of Q values
+            target_q = target_dqn(self.state_to_dqn_input(state, num_states)) 
+
+            # Adjust the specific action to the target that was just calculated
+            target_q[action] = target
+            target_q_list.append(target_q)
+
+        # calculate the loss for all the batch  
+        loss = self.loss_func(torch.stack(current_q_list), torch.stack(target_q_list))
+
+        # Optimize the model by running back-propagation
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
+        return
+        
+    # Test function
+    def test_DQN(self, episodes, environment,optimal_policy):
+        # Create FrozenLake instance
+        P = environment
+        num_of_states = len(P)
+        num_of_actions = len(P[0])
+
+        # Load learned policy
+        policy_dqn = DQN(num_of_states, num_of_states, num_of_actions) 
+        policy_dqn.load_state_dict(optimal_policy)
+        policy_dqn.eval()    # switch model to evaluation mode
+
+        print('Policy (trained):')
+        self.print_dqn(policy_dqn)
+
+        for i in range(episodes):
+            current_state = random.randint(0, len(environment)-1)
+
+            for _ in range(100):
+                # Select best action   
+                with torch.no_grad():
+                    action = policy_dqn(self.state_to_dqn_input(current_state, num_of_states)).argmax().item()
+                # Execute action
+                current_state,reward = get_response(P, current_state, action)
+
+        
+        
+    def print_dqn(self, dqn):
+        # Get number of input nodes
+        num_states = dqn.fc1.in_features
+
+        # Loop each state and print policy to console
+        for s in range(num_states):
+            #  Format q values for printing
+            q_values = ''
+            for q in dqn(self.state_to_dqn_input(s, num_states)).tolist():
+                q_values += "{:+.2f}".format(q)+' '  # Concatenate q values, format to 2 decimals
+            q_values=q_values.rstrip()              # Remove space at the end
+
+            # Map the best action to L D R U
+            best_action = dqn(self.state_to_dqn_input(s, num_states)).argmax()
+
+            # Print policy in the format of: state, action, q values
+            # The printed layout matches the FrozenLake map.
+            print(f'{s:02},{best_action},[{q_values}]', end='\n')         
+            if (s+1)%4==0:
+                print() # Print a newline every 4 states
+
+
+ # Run the Deep - Q Learning
+if __name__ == '__main__':
+
+    dql = stock_market_trading_DQN()
+    optimal_policy = dql.train_DQN(100000,P2)
+    dql.test_DQN(10,P2,optimal_policy)
+            
+        
+        
+        
+        
+        
+        
+        
+        
+        
