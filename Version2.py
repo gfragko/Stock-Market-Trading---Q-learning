@@ -1,4 +1,3 @@
-import gymnasium as gym
 import numpy as np
 import matplotlib.pyplot as plt
 from collections import deque
@@ -6,6 +5,7 @@ import random
 import torch
 from torch import nn
 import torch.nn.functional as F
+from tqdm import tqdm
 
 action_keep = 0     # keep the same stock
 action_switch = 1   # switch to the other stock1
@@ -306,7 +306,8 @@ class FrozenLakeDQL():
         # Track number of steps taken. Used for syncing policy => target network.
         step_count=0
             
-        for i in range(episodes):
+        progress_bar = tqdm(range(episodes))
+        for episode in progress_bar:
             state = random.randint(0, len(P2)-1) 
 
             # Agent navigates map until it falls into hole/reaches goal (terminated), or has taken 200 actions (truncated).

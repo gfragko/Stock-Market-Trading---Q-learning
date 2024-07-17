@@ -15,6 +15,32 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 from collections import deque
+from tqdm import tqdm
+
+
+
+class SimpleModel(nn.Module):
+    def __init__(self):
+        super(SimpleModel, self).__init__()
+        self.fc = nn.Linear(10, 1)
+
+    def forward(self, x):
+        return self.fc(x)
+
+print(torch.cuda.device_count())
+print(torch.cuda.get_device_name())
+if torch.cuda.is_available():
+    print("CUDA is available. PyTorch can use the GPU.")
+else:
+    print("CUDA is not available. PyTorch will use the CPU.")
+    
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+print(f'Using device: {device}')
+
+model = SimpleModel().to(device)
+
+
+
 
 #-------------------------------__________________Environments___________________-------------------------------------------------------------------------
 # Generating environments
@@ -363,8 +389,8 @@ def generate_environment(N,fee):
             row = [0.5,0.5,0.5,0.5] #[LL,LH,HL,HH]
         pi.append(row)
 
-
-    for i in range(0, total_states):
+    progress_bar = tqdm(range(0, total_states))
+    for i in progress_bar:
         SubDictionary={}
         action_Keep = []
         action_Switch = []
@@ -394,6 +420,7 @@ def generate_environment(N,fee):
         # So We now know that we are at state {x,L,L,H....,H} with x the number of current stock
 
         #__Keep Stock ________________________________________________________________________________________________________________
+        # progress_1 = tqdm(range (stock*2**N, ((stock+1)*2**N)))
         for j in range (stock*2**N, ((stock+1)*2**N)): # for every possible transition when keeping the same stock
             state_to_trans = j - stock * states_for_each_stock          # value (H or L) of all of the stocks at the state we will transition to, in decimal form (0,1,2,3...)
             trans_state_array = decimal_to_binary_array(state_to_trans, max_state_length) # convert to binary and take each bit separately (0 for L and 1 for H)
@@ -420,6 +447,7 @@ def generate_environment(N,fee):
         #-----------------------------------------------------------------------------------------------------------------------------------------------
         #fee = 0
         #__Switch Stock ________________________________________________________________________________________________________________
+        # progress_bar = tqdm(range (0, total_states))
         for j in range (0, total_states): # for every possible transition when keeping the same stock
             trans_stock = j // states_for_each_stock
 
@@ -617,6 +645,7 @@ class stock_market_trading_DQN():
     # loss_func = nn.SmoothL1Loss()
     loss_func = nn.MSELoss()
     optimizer = None
+    ACTIONS = [0,1]
     
     # Encode the input state 
     def state_to_dqn_input(self, state:int, num_states:int)->torch.Tensor:
@@ -634,12 +663,12 @@ class stock_market_trading_DQN():
         
         
     # This method is responsible to train our network based on a number of 'episodes'
-    def train_DQN(self, episodes, environment):
+    def train_DQN(self, episodes,environment):
         P = environment
         num_of_states = len(P)
         num_of_actions = len(P[0])
         
-        epsilon = 1.0 # Exploration rate
+        epsilon = 1 # Exploration rate
         memory_buffer = ReplayMemory(self.replay_buffer_size)
         #memory_buffer = [[] for _ in range(self.replay_buffer_size)] 
         
@@ -672,12 +701,11 @@ class stock_market_trading_DQN():
         reward_tracking = np.zeros(episodes)
         # List to keep track of epsilon decay
         epsilon_tracking = []
-        step = 0 # which step we are on 
         synch_counter = 0 # which step we are on 
         
-
-        for i in range(episodes):
-            current_state = random.randint(0, len(environment)-1) # select a random starting state
+        progress_bar = tqdm(range(episodes))
+        for i in progress_bar:
+            current_state = random.randint(0, len(P)-1) # select a random starting state
         
             for _ in range(100):      # do 100 steps do get a feel for what happens in the environment
                 # decide if we are going to explore or to exploit based on the epsilon value
@@ -691,7 +719,7 @@ class stock_market_trading_DQN():
                         action = policy_dqn(self.state_to_dqn_input(current_state, num_of_states)).argmax().item()
                     
                 # get the response from the environment
-                next_state,reward = get_response(environment, current_state, action)
+                next_state,reward = get_response(P, current_state, action)
                 # reward_tracking[i] = reward
                 
                 # Store the environments response into our memory        
@@ -702,7 +730,6 @@ class stock_market_trading_DQN():
                 current_state = next_state    
             
                 # Increment step counter
-                step += 1
                 synch_counter += 1
             
             # Perform the optimization
@@ -713,8 +740,8 @@ class stock_market_trading_DQN():
                 self.optimize(mini_batch, policy_dqn, target_dqn)        
 
                 # Decay epsilon
-                #epsilon = max(epsilon - 1/episodes, 0)
-                epsilon = max(epsilon * 0.99, 0.1)
+                epsilon = max(epsilon - 1/episodes, 0)
+                #epsilon = max(epsilon * 0.99, 0.1)
 
                 # Copy policy network to target network after a certain number of steps
                 ### CHECK
@@ -725,8 +752,8 @@ class stock_market_trading_DQN():
                     synch_counter = 0
 
         # return the optimal policy
-        return policy_dqn.state_dict()
-              
+        #return policy_dqn.state_dict()
+        torch.save(policy_dqn.state_dict(), "frozen_lake_dql.pt")
                 
     def optimize(self,mini_batch, policy_dqn, target_dqn):
         # Get number of input nodes
@@ -767,22 +794,23 @@ class stock_market_trading_DQN():
         
         
     # Test function
-    def test_DQN(self, episodes, environment,optimal_policy):
+    def test_DQN(self, episodes,environment):
         # Create FrozenLake instance
         P = environment
         num_of_states = len(P)
         num_of_actions = len(P[0])
 
         # Load learned policy
-        policy_dqn = DQN(num_of_states, num_of_states, num_of_actions) 
-        policy_dqn.load_state_dict(optimal_policy)
+        policy_dqn = DQN(in_states=num_of_states, h1_nodes=num_of_states, out_actions=num_of_actions) 
+ 
+        policy_dqn.load_state_dict(torch.load("frozen_lake_dql.pt"))
         policy_dqn.eval()    # switch model to evaluation mode
 
         print('Policy (trained):')
         self.print_dqn(policy_dqn)
 
         for i in range(episodes):
-            current_state = random.randint(0, len(environment)-1)
+            current_state = random.randint(0, num_of_states-1)
 
             for _ in range(100):
                 # Select best action   
@@ -816,11 +844,15 @@ class stock_market_trading_DQN():
 
 
  # Run the Deep - Q Learning
-if __name__ == '__main__':
+#if __name__ == '__main__':
 
-    dql = stock_market_trading_DQN()
-    optimal_policy = dql.train_DQN(10000,P2)
-    dql.test_DQN(10,P2,optimal_policy)
+dql = stock_market_trading_DQN()
+# dql.train_DQN(100000,P2)
+# dql.test_DQN(10,P2)
+print("Generating environment:")
+P3 = generate_environment(6,0.01)
+dql.train_DQN(100000,P3)
+dql.test_DQN(10,P3)
             
         
         
