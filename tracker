@@ -1,0 +1,77 @@
+N = 2 (Πρόοδος)
+fee = 0.01
+gamma = 0
+
+Tabular_episodes = 200000
+NN_episodes = 10000
+
+Tabular_time = 1:56
+NN_Time = 1:32
+
+Tabular_learning_Rate = 0.9
+NN_learning_Rate = 0.001
+
+svsta
+
+===========================================
+
+N = 3
+fee = 0.001
+gamma = 0.5
+
+Tabular_episodes = 250000
+NN_episodes = 20000
+
+Tabular_time = 2:35
+NN_Time = 4:06
+
+Tabular_learning_Rate = 0.9
+NN_learning_Rate = 0.001
+
+Λαθος και τα 2
+==============================================
+
+
+N = 3
+fee = 0.001
+gamma = 0.1
+
+NN_episodes = 10000
+
+NN_Time = 1:32 
+
+NN_learning_Rate = 0.01
+ polu lathos
+NN_learning_Rate = 0.1
+ lathos
+
+ ===============================================
+ N = 3
+fee = 0.001
+gamma = 0.1
+
+NN_episodes = 50000
+
+NN_Time = 15:00
+
+NN_learning_Rate = 0.01
+ 
+NN_learning_Rate = 0.1
+no
+================================================
+synching_period = 10     # After this many batches we synch the target nn with the policy nn
+replay_buffer_size = 10000 # Size of replay buffer
+min_batch_size = 64      # Size of each batch
+
+N = 3
+fee = 0.001
+gamma = 0.1
+
+NN_episodes = 50000
+
+NN_Time = 
+
+NN_learning_Rate = 0.001
+ 
+
+
